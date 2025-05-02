@@ -29,15 +29,35 @@
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
+            font-size: 1rem;
         }
 
-        .search-form button[type="submit"] {
+        .button {
+            flex-grow: 1; /* ボタンの幅を揃える */
             padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            color: #333;
+            font-size: 1rem;
+            text-align: center;
+            text-decoration: none;
+            min-width: 80px; /* 最小幅を設定 */
+        }
+
+        .button.primary {
             background-color: #007bff;
             color: white;
             border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        }
+
+        .history-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+            width: 100%;
         }
 
         .history-select {
@@ -45,7 +65,34 @@
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        .history-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .history-controls button,
+        .history-controls label {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            color: #333;
+            text-align: center;
+            font-size: 1rem;
+            min-width: 80px;
+        }
+
+        .history-controls label {
+            background-color: #e0e0e0;
+        }
+
+        .history-controls input[type="file"] {
+            display: none; /* ファイル選択ボタンを隠す */
         }
 
         /* レスポンシブデザイン */
@@ -57,6 +104,15 @@
             .search-form button[type="submit"] {
                 width: 100%;
             }
+
+            .history-controls {
+                flex-direction: column;
+            }
+
+            .history-controls button,
+            .history-controls label {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -64,12 +120,19 @@
     <div class="container">
         <form class="search-form" id="searchForm" action="http://192.168.4.101/search/searchresult/searchresult.html" method="get">
             <input type="text" id="keywordInput" name="keyword" placeholder="キーワードを入力">
-            <button type="submit">検索</button>
+            <button type="submit" class="button primary">検索</button>
         </form>
 
-        <select class="history-select" id="keywordHistory">
-            <option value="" disabled selected>過去のキーワードを選択</option>
-        </select>
+        <div class="history-section">
+            <select class="history-select" id="keywordHistory">
+                <option value="" disabled selected>過去のキーワードを選択</option>
+            </select>
+            <div class="history-controls">
+                <button type="button" id="exportHistory" class="button">履歴をエクスポート</button>
+                <label for="importFile" class="button">履歴をインポート</label>
+                <input type="file" id="importFile" accept="text/plain">
+            </div>
+        </div>
     </div>
 
     <script>
@@ -77,6 +140,8 @@
             const keywordInput = document.getElementById('keywordInput');
             const searchForm = document.getElementById('searchForm');
             const keywordHistorySelect = document.getElementById('keywordHistory');
+            const exportButton = document.getElementById('exportHistory');
+            const importFile = document.getElementById('importFile');
             const maxHistorySize = 50;
             let keywordHistory = loadKeywordHistory();
 
@@ -94,8 +159,7 @@
             // キーワード履歴をリストに表示する（最新のものを上に）
             function updateKeywordHistoryList() {
                 keywordHistorySelect.innerHTML = '<option value="" disabled selected>過去のキーワードを選択</option>';
-                // 最新のものを先頭にするためにreverseしてからoptionを追加
-                [...keywordHistory].reverse().forEach(keyword => {
+                keywordHistory.forEach(keyword => {
                     const option = document.createElement('option');
                     option.value = keyword;
                     option.textContent = keyword;
@@ -116,6 +180,8 @@
                     if (keywordHistory.length > maxHistorySize) {
                         keywordHistory.shift(); // 古いキーワードを削除
                     }
+                    // 表示順を最新が先頭になるように並べ替え
+                    keywordHistory.reverse();
                     saveKeywordHistory();
                     updateKeywordHistoryList();
 
@@ -131,7 +197,49 @@
                 keywordInput.value = this.value;
             });
 
-            // 初回読み込み時に履歴を表示
+            // 履歴のエクスポート機能
+            exportButton.addEventListener('click', function() {
+                const historyText = keywordHistory.join('\n');
+                const blob = new Blob([historyText], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'keyword_history.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+
+            // 履歴のインポート機能
+            importFile.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const importedKeywords = e.target.result.split('\n').map(keyword => keyword.trim()).filter(keyword => keyword !== '');
+                        // インポートしたキーワードを既存の履歴にマージ（重複排除、最大50件）
+                        importedKeywords.reverse().forEach(keyword => {
+                            if (!keywordHistory.includes(keyword)) {
+                                keywordHistory.push(keyword);
+                                if (keywordHistory.length > maxHistorySize) {
+                                    keywordHistory.shift();
+                                }
+                            }
+                        });
+                        // 最新のものを先頭にする
+                        keywordHistory.reverse();
+                        saveKeywordHistory();
+                        updateKeywordHistoryList();
+                    };
+                    reader.readAsText(file);
+                    // ファイル選択をリセット
+                    importFile.value = '';
+                }
+            });
+
+            // 初回読み込み時に履歴を表示（最新が先頭）
+            keywordHistory.reverse();
             updateKeywordHistoryList();
         });
     </script>
