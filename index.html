@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>キーワード検索</title>
+    <title>Regzaキーワード検索</title>
     <style>
         body {
             font-family: sans-serif;
@@ -13,106 +13,120 @@
             max-width: 600px;
             margin: 0 auto;
         }
-        input[type="text"] {
-            width: calc(100% - 110px);
+        input[type="text"], select, button {
             padding: 10px;
             margin-bottom: 10px;
             border: 1px solid #ccc;
             box-sizing: border-box;
-        }
-        button {
-            padding: 10px 15px;
             font-size: 16px;
-            cursor: pointer;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
         }
-        button:hover {
-            background-color: #0056b3;
+        input[type="text"] {
+            width: 100%;
         }
         select {
             width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            box-sizing: border-box;
         }
-        .settings-container {
-            margin-top: 50px; /* 他の表示から3行空けるためのmargin-top */
+        button {
+            background-color: #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #e0e0e0;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        .settings-group {
+            margin-top: 10px;
+            display: none; /* 初期状態では非表示 */
+            flex-direction: column;
+            gap: 10px;
         }
         .settings-button {
-            background-color: #808080; /* グレー */
+            background-color: #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
         }
-        .settings-options {
-            display: none;
-            margin-top: 10px;
+        .settings-button:hover {
+            background-color: #e0e0e0;
         }
-        .settings-options button {
-            margin-right: 10px;
+        .settings-link {
+            display: block;
+            margin-top: 30px;
+            color: blue;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        #importFile {
+            display: none; /* ファイル選択inputを非表示 */
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <form id="searchForm">
-            <input type="text" id="keywordInput" placeholder="キーワードを入力">
-            <button type="submit">検索</button>
-            <select id="keywordHistory">
-                <option value="" disabled selected>キーワード履歴から選択</option>
-            </select>
-        </form>
+        <input type="text" id="keyword" placeholder="キーワードを入力">
+        <select id="keywordHistory">
+            <option value="" hidden>キーワード選択</option>
+        </select>
+        <div class="button-group">
+            <button onclick="searchRegza()">レグザ検索</button>
+            <button onclick="searchTVDetuzo()">TVでた蔵検索</button>
+        </div>
 
-        <div class="settings-container">
-            <button id="settingsButton" class="settings-button">設定</button>
-            <div id="settingsOptions" class="settings-options">
-                <button id="exportButton" type="button">履歴をエクスポート</button>
-                <input type="file" id="importFile" accept="text/plain" style="display: none;">
-                <button id="importButton" type="button">履歴をインポート</button>
-                <button id="clearHistoryButton" type="button">履歴を削除</button>
-            </div>
+        <div class="settings-link" onclick="toggleSettings()">設定</div>
+
+        <div id="settings" class="settings-group">
+            <button class="settings-button" onclick="exportHistory()">エキスポートを実行</button>
+            <button class="settings-button" onclick="triggerImport()">インポートを実行</button>
+            <input type="file" id="importFile" accept="text/plain" onchange="importHistory()">
+            <button class="settings-button" onclick="clearHistory()">キーワード履歴を削除</button>
         </div>
     </div>
 
     <script>
-        const keywordInput = document.getElementById('keywordInput');
-        const searchForm = document.getElementById('searchForm');
+        const keywordInput = document.getElementById('keyword');
         const keywordHistorySelect = document.getElementById('keywordHistory');
-        const settingsButton = document.getElementById('settingsButton');
-        const settingsOptions = document.getElementById('settingsOptions');
-        const exportButton = document.getElementById('exportButton');
-        const importButton = document.getElementById('importButton');
-        const clearHistoryButton = document.getElementById('clearHistoryButton');
-        const importFile = document.getElementById('importFile');
+        const settingsDiv = document.getElementById('settings');
+        const importFileElement = document.getElementById('importFile');
 
-        const HISTORY_KEY = 'searchKeywords';
-        const MAX_HISTORY_LENGTH = 50;
-        let keywordHistory = loadHistory();
+        let keywords = loadKeywords();
+        updateKeywordHistory();
 
-        function loadHistory() {
-            const storedHistory = localStorage.getItem(HISTORY_KEY);
-            return storedHistory ? JSON.parse(storedHistory) : [];
+        function loadKeywords() {
+            const storedKeywords = localStorage.getItem('keywords');
+            return storedKeywords ? JSON.parse(storedKeywords) : [];
         }
 
-        function saveHistory() {
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(keywordHistory));
-            updateHistoryDropdown();
+        function saveKeywords() {
+            localStorage.setItem('keywords', JSON.stringify(keywords));
         }
 
-        function addKeywordToHistory(keyword) {
-            if (keyword && !keywordHistory.includes(keyword)) {
-                keywordHistory.unshift(keyword);
-                if (keywordHistory.length > MAX_HISTORY_LENGTH) {
-                    keywordHistory.pop();
+        function addKeyword(keyword) {
+            if (keyword && keyword.trim() !== "") {
+                const trimmedKeyword = keyword.trim();
+                const index = keywords.indexOf(trimmedKeyword);
+                if (index > -1) {
+                    keywords.splice(index, 1); // 重複を削除
                 }
-                saveHistory();
+                keywords.unshift(trimmedKeyword); // 先頭に追加
+                if (keywords.length > 50) {
+                    keywords.pop(); // 最大50件まで
+                }
+                saveKeywords();
+                updateKeywordHistory();
             }
         }
 
-        function updateHistoryDropdown() {
-            keywordHistorySelect.innerHTML = '<option value="" disabled selected>キーワード履歴から選択</option>';
-            keywordHistory.forEach(keyword => {
+        function updateKeywordHistory() {
+            keywordHistorySelect.innerHTML = '';
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'キーワード選択';
+            defaultOption.hidden = true; // 初期表示を非表示にする
+            keywordHistorySelect.appendChild(defaultOption);
+            keywords.forEach(keyword => {
                 const option = document.createElement('option');
                 option.value = keyword;
                 option.textContent = keyword;
@@ -120,89 +134,82 @@
             });
         }
 
-        function moveKeywordToTop(keyword) {
-            const index = keywordHistory.indexOf(keyword);
-            if (index > -1) {
-                keywordHistory.splice(index, 1);
-                keywordHistory.unshift(keyword);
-                saveHistory();
-            }
-        }
-
-        function clearKeywordHistory() {
-            keywordHistory = [];
-            saveHistory();
-        }
-
-        searchForm.addEventListener('submit', function(event) {
-            event.preventDefault();
-            const keyword = keywordInput.value.trim();
-            if (keyword) {
-                addKeywordToHistory(keyword);
-                window.location.href = `http://192.168.4.101/search/searchresult/searchresult.html?keyword=${encodeURIComponent(keyword)}`;
-                keywordInput.value = '';
-            }
-        });
-
         keywordHistorySelect.addEventListener('change', function() {
             const selectedKeyword = this.value;
-            if (selectedKeyword) {
-                moveKeywordToTop(selectedKeyword);
-                window.location.href = `http://192.168.4.101/search/searchresult/searchresult.html?keyword=${encodeURIComponent(selectedKeyword)}`;
+            if (selectedKeyword !== "") {
+                keywordInput.value = selectedKeyword;
+                addKeyword(selectedKeyword); // 選択したキーワードを先頭に移動
+            } else {
+                keywordInput.value = ""; // デフォルト選択肢が選ばれた場合は入力欄をクリア
             }
-            this.selectedIndex = 0; // 選択状態をリセット
         });
 
-        settingsButton.addEventListener('click', function() {
-            settingsOptions.style.display = settingsOptions.style.display === 'none' ? 'block' : 'none';
+        keywordInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                searchRegza(); // デフォルトはレグザ検索とするか、必要に応じて変更
+            }
         });
 
-        exportButton.addEventListener('click', function() {
-            const historyText = keywordHistory.join('\n');
-            const blob = new Blob([historyText], { type: 'text/plain' });
+        function searchRegza() {
+            const keyword = keywordInput.value;
+            addKeyword(keyword);
+            window.location.href = `http://192.168.4.101/search/searchresult/searchresult.html?keyword=${encodeURIComponent(keyword)}`;
+        }
+
+        function searchTVDetuzo() {
+            const keyword = keywordInput.value;
+            window.location.href = `https://www.google.com/search?num=50&tbs=qdr:m&sbd:1&q=site%3Ahttps%3A%2F%2Fdatazoo.jp%2F+${encodeURIComponent(keyword)}`;
+            // TVでた蔵検索ではキーワード履歴に追加しない
+        }
+
+        function exportHistory() {
+            const text = keywords.join('\n');
+            const filename = 'keyword_history.txt';
+            const blob = new Blob([text], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'keyword_history.txt';
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        });
+            alert('キーワード履歴をエクスポートしました。');
+        }
 
-        importButton.addEventListener('click', function() {
-            importFile.click();
-        });
+        function triggerImport() {
+            importFileElement.click(); // 非表示のファイル選択inputをクリック
+        }
 
-        importFile.addEventListener('change', function(event) {
-            const file = event.target.files[0];
+        function importHistory() {
+            const file = importFileElement.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    const importedKeywords = e.target.result.split('\n').map(keyword => keyword.trim()).filter(keyword => keyword !== '');
-                    importedKeywords.forEach(keyword => {
-                        if (!keywordHistory.includes(keyword)) {
-                            keywordHistory.unshift(keyword);
-                            if (keywordHistory.length > MAX_HISTORY_LENGTH) {
-                                keywordHistory.pop();
-                            }
-                        }
-                    });
-                    saveHistory();
-                    importFile.value = ''; // ファイル選択をリセット
+                    const importedKeywords = e.target.result.split('\n').filter(keyword => keyword.trim() !== "");
+                    keywords = [...new Set([...importedKeywords, ...keywords])].slice(0, 50); // 重複排除して最大50件
+                    saveKeywords();
+                    updateKeywordHistory();
+                    alert('キーワード履歴をインポートしました。');
                 };
                 reader.readAsText(file);
+            } else {
+                alert('ファイルを選択してください。');
             }
-        });
+        }
 
-        clearHistoryButton.addEventListener('click', function() {
-            if (confirm('キーワード履歴をすべて削除しますか？')) {
-                clearKeywordHistory();
+        function clearHistory() {
+            if (confirm('キーワード履歴を削除しますか？')) {
+                keywords = [];
+                saveKeywords();
+                updateKeywordHistory();
+                alert('キーワード履歴を削除しました。');
             }
-        });
+        }
 
-        // 初回読み込み時に履歴を更新
-        updateHistoryDropdown();
+        function toggleSettings() {
+            settingsDiv.style.display = settingsDiv.style.display === 'none' ? 'flex' : 'none';
+        }
     </script>
 </body>
 </html>
