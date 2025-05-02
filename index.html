@@ -8,240 +8,201 @@
         body {
             font-family: sans-serif;
             margin: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
         }
-
         .container {
-            width: 90%;
             max-width: 600px;
+            margin: 0 auto;
         }
-
-        .search-form {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .search-form input[type="text"] {
-            flex-grow: 1;
+        input[type="text"] {
+            width: calc(100% - 110px);
             padding: 10px;
+            margin-bottom: 10px;
             border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 1rem;
+            box-sizing: border-box;
         }
-
-        .button {
-            flex-grow: 1; /* ボタンの幅を揃える */
+        button {
             padding: 10px 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            font-size: 16px;
             cursor: pointer;
-            background-color: #f0f0f0;
-            color: #333;
-            font-size: 1rem;
-            text-align: center;
-            text-decoration: none;
-            min-width: 80px; /* 最小幅を設定 */
-        }
-
-        .button.primary {
             background-color: #007bff;
             color: white;
             border: none;
+            border-radius: 5px;
         }
-
-        .history-section {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-bottom: 15px;
-            width: 100%;
+        button:hover {
+            background-color: #0056b3;
         }
-
-        .history-select {
+        select {
             width: 100%;
             padding: 10px;
+            margin-bottom: 10px;
             border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 1rem;
+            box-sizing: border-box;
         }
-
-        .history-controls {
-            display: flex;
-            gap: 10px;
+        .settings-container {
+            margin-top: 50px; /* 他の表示から3行空けるためのmargin-top */
         }
-
-        .history-controls button,
-        .history-controls label {
-            flex-grow: 1;
-            padding: 8px 12px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            cursor: pointer;
-            background-color: #f0f0f0;
-            color: #333;
-            text-align: center;
-            font-size: 1rem;
-            min-width: 80px;
+        .settings-button {
+            background-color: #808080; /* グレー */
         }
-
-        .history-controls label {
-            background-color: #e0e0e0;
+        .settings-options {
+            display: none;
+            margin-top: 10px;
         }
-
-        .history-controls input[type="file"] {
-            display: none; /* ファイル選択ボタンを隠す */
-        }
-
-        /* レスポンシブデザイン */
-        @media (max-width: 600px) {
-            .search-form {
-                flex-direction: column;
-            }
-
-            .search-form button[type="submit"] {
-                width: 100%;
-            }
-
-            .history-controls {
-                flex-direction: column;
-            }
-
-            .history-controls button,
-            .history-controls label {
-                width: 100%;
-            }
+        .settings-options button {
+            margin-right: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <form class="search-form" id="searchForm" action="http://192.168.4.101/search/searchresult/searchresult.html" method="get">
-            <input type="text" id="keywordInput" name="keyword" placeholder="キーワードを入力">
-            <button type="submit" class="button primary">検索</button>
+        <form id="searchForm">
+            <input type="text" id="keywordInput" placeholder="キーワードを入力">
+            <button type="submit">検索</button>
+            <select id="keywordHistory">
+                <option value="" disabled selected>キーワード履歴から選択</option>
+            </select>
         </form>
 
-        <div class="history-section">
-            <select class="history-select" id="keywordHistory">
-                <option value="" disabled selected>過去のキーワードを選択</option>
-            </select>
-            <div class="history-controls">
-                <button type="button" id="exportHistory" class="button">履歴をエクスポート</button>
-                <label for="importFile" class="button">履歴をインポート</label>
-                <input type="file" id="importFile" accept="text/plain">
+        <div class="settings-container">
+            <button id="settingsButton" class="settings-button">設定</button>
+            <div id="settingsOptions" class="settings-options">
+                <button id="exportButton" type="button">履歴をエクスポート</button>
+                <input type="file" id="importFile" accept="text/plain" style="display: none;">
+                <button id="importButton" type="button">履歴をインポート</button>
+                <button id="clearHistoryButton" type="button">履歴を削除</button>
             </div>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const keywordInput = document.getElementById('keywordInput');
-            const searchForm = document.getElementById('searchForm');
-            const keywordHistorySelect = document.getElementById('keywordHistory');
-            const exportButton = document.getElementById('exportHistory');
-            const importFile = document.getElementById('importFile');
-            const maxHistorySize = 50;
-            let keywordHistory = loadKeywordHistory();
+        const keywordInput = document.getElementById('keywordInput');
+        const searchForm = document.getElementById('searchForm');
+        const keywordHistorySelect = document.getElementById('keywordHistory');
+        const settingsButton = document.getElementById('settingsButton');
+        const settingsOptions = document.getElementById('settingsOptions');
+        const exportButton = document.getElementById('exportButton');
+        const importButton = document.getElementById('importButton');
+        const clearHistoryButton = document.getElementById('clearHistoryButton');
+        const importFile = document.getElementById('importFile');
 
-            // ローカルストレージからキーワード履歴を読み込む
-            function loadKeywordHistory() {
-                const storedHistory = localStorage.getItem('keywordHistory');
-                return storedHistory ? JSON.parse(storedHistory) : [];
-            }
+        const HISTORY_KEY = 'searchKeywords';
+        const MAX_HISTORY_LENGTH = 50;
+        let keywordHistory = loadHistory();
 
-            // ローカルストレージにキーワード履歴を保存する
-            function saveKeywordHistory() {
-                localStorage.setItem('keywordHistory', JSON.stringify(keywordHistory));
-            }
+        function loadHistory() {
+            const storedHistory = localStorage.getItem(HISTORY_KEY);
+            return storedHistory ? JSON.parse(storedHistory) : [];
+        }
 
-            // キーワード履歴をリストに表示する（最新のものを上に）
-            function updateKeywordHistoryList() {
-                keywordHistorySelect.innerHTML = '<option value="" disabled selected>過去のキーワードを選択</option>';
-                keywordHistory.forEach(keyword => {
-                    const option = document.createElement('option');
-                    option.value = keyword;
-                    option.textContent = keyword;
-                    keywordHistorySelect.appendChild(option);
-                });
-            }
+        function saveHistory() {
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(keywordHistory));
+            updateHistoryDropdown();
+        }
 
-            // フォーム送信時の処理
-            searchForm.addEventListener('submit', function(event) {
-                const currentKeyword = keywordInput.value.trim();
-                if (currentKeyword) {
-                    // 重複を排除して履歴に追加（最新のものを先頭にする）
-                    const index = keywordHistory.indexOf(currentKeyword);
-                    if (index !== -1) {
-                        keywordHistory.splice(index, 1); // 既存のものを削除
-                    }
-                    keywordHistory.push(currentKeyword);
-                    if (keywordHistory.length > maxHistorySize) {
-                        keywordHistory.shift(); // 古いキーワードを削除
-                    }
-                    // 表示順を最新が先頭になるように並べ替え
-                    keywordHistory.reverse();
-                    saveKeywordHistory();
-                    updateKeywordHistoryList();
-
-                    // フォームのaction属性にキーワードを追加
-                    this.action = `http://192.168.4.101/search/searchresult/searchresult.html?keyword=${encodeURIComponent(currentKeyword)}`;
-                } else {
-                    event.preventDefault(); // キーワードが空の場合は送信しない (必要に応じて)
+        function addKeywordToHistory(keyword) {
+            if (keyword && !keywordHistory.includes(keyword)) {
+                keywordHistory.unshift(keyword);
+                if (keywordHistory.length > MAX_HISTORY_LENGTH) {
+                    keywordHistory.pop();
                 }
-            });
+                saveHistory();
+            }
+        }
 
-            // 履歴から選択されたキーワードを入力欄に設定
-            keywordHistorySelect.addEventListener('change', function() {
-                keywordInput.value = this.value;
+        function updateHistoryDropdown() {
+            keywordHistorySelect.innerHTML = '<option value="" disabled selected>キーワード履歴から選択</option>';
+            keywordHistory.forEach(keyword => {
+                const option = document.createElement('option');
+                option.value = keyword;
+                option.textContent = keyword;
+                keywordHistorySelect.appendChild(option);
             });
+        }
 
-            // 履歴のエクスポート機能
-            exportButton.addEventListener('click', function() {
-                const historyText = keywordHistory.join('\n');
-                const blob = new Blob([historyText], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'keyword_history.txt';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            });
+        function moveKeywordToTop(keyword) {
+            const index = keywordHistory.indexOf(keyword);
+            if (index > -1) {
+                keywordHistory.splice(index, 1);
+                keywordHistory.unshift(keyword);
+                saveHistory();
+            }
+        }
 
-            // 履歴のインポート機能
-            importFile.addEventListener('change', function(event) {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const importedKeywords = e.target.result.split('\n').map(keyword => keyword.trim()).filter(keyword => keyword !== '');
-                        // インポートしたキーワードを既存の履歴にマージ（重複排除、最大50件）
-                        importedKeywords.reverse().forEach(keyword => {
-                            if (!keywordHistory.includes(keyword)) {
-                                keywordHistory.push(keyword);
-                                if (keywordHistory.length > maxHistorySize) {
-                                    keywordHistory.shift();
-                                }
-                            }
-                        });
-                        // 最新のものを先頭にする
-                        keywordHistory.reverse();
-                        saveKeywordHistory();
-                        updateKeywordHistoryList();
-                    };
-                    reader.readAsText(file);
-                    // ファイル選択をリセット
-                    importFile.value = '';
-                }
-            });
+        function clearKeywordHistory() {
+            keywordHistory = [];
+            saveHistory();
+        }
 
-            // 初回読み込み時に履歴を表示（最新が先頭）
-            keywordHistory.reverse();
-            updateKeywordHistoryList();
+        searchForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const keyword = keywordInput.value.trim();
+            if (keyword) {
+                addKeywordToHistory(keyword);
+                window.location.href = `http://192.168.4.101/search/searchresult/searchresult.html?keyword=${encodeURIComponent(keyword)}`;
+                keywordInput.value = '';
+            }
         });
+
+        keywordHistorySelect.addEventListener('change', function() {
+            const selectedKeyword = this.value;
+            if (selectedKeyword) {
+                moveKeywordToTop(selectedKeyword);
+                window.location.href = `http://192.168.4.101/search/searchresult/searchresult.html?keyword=${encodeURIComponent(selectedKeyword)}`;
+            }
+            this.selectedIndex = 0; // 選択状態をリセット
+        });
+
+        settingsButton.addEventListener('click', function() {
+            settingsOptions.style.display = settingsOptions.style.display === 'none' ? 'block' : 'none';
+        });
+
+        exportButton.addEventListener('click', function() {
+            const historyText = keywordHistory.join('\n');
+            const blob = new Blob([historyText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'keyword_history.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        importButton.addEventListener('click', function() {
+            importFile.click();
+        });
+
+        importFile.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const importedKeywords = e.target.result.split('\n').map(keyword => keyword.trim()).filter(keyword => keyword !== '');
+                    importedKeywords.forEach(keyword => {
+                        if (!keywordHistory.includes(keyword)) {
+                            keywordHistory.unshift(keyword);
+                            if (keywordHistory.length > MAX_HISTORY_LENGTH) {
+                                keywordHistory.pop();
+                            }
+                        }
+                    });
+                    saveHistory();
+                    importFile.value = ''; // ファイル選択をリセット
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        clearHistoryButton.addEventListener('click', function() {
+            if (confirm('キーワード履歴をすべて削除しますか？')) {
+                clearKeywordHistory();
+            }
+        });
+
+        // 初回読み込み時に履歴を更新
+        updateHistoryDropdown();
     </script>
 </body>
 </html>
