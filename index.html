@@ -66,14 +66,16 @@
 </head>
 <body>
     <div class="container">
-        <input type="text" id="keyword" placeholder="キーワードを入力">
-        <select id="keywordHistory">
-            <option value="" hidden>キーワード選択</option>
-        </select>
-        <div class="button-group">
-            <button onclick="searchRegza()">レグザ検索</button>
-            <button onclick="searchTVDetuzo()">TVでた蔵検索</button>
-        </div>
+        <form id="searchForm" action="http://192.168.4.101/search/searchresult/searchresult.html" method="get">
+            <input type="text" id="keyword" name="keyword" placeholder="キーワードを入力">
+            <select id="keywordHistory" onchange="submitForm(this)">
+                <option value="" hidden>キーワード選択</option>
+            </select>
+            <div class="button-group">
+                <button type="button" onclick="searchRegza()">レグザ検索</button>
+                <button type="button" onclick="searchTVDetuzo()">TVでた蔵検索</button>
+            </div>
+        </form>
 
         <div class="settings-link" onclick="toggleSettings()">設定</div>
 
@@ -86,6 +88,7 @@
     </div>
 
     <script>
+        const searchForm = document.getElementById('searchForm');
         const keywordInput = document.getElementById('keyword');
         const keywordHistorySelect = document.getElementById('keywordHistory');
         const settingsDiv = document.getElementById('settings');
@@ -134,15 +137,14 @@
             });
         }
 
-        keywordHistorySelect.addEventListener('change', function() {
-            const selectedKeyword = this.value;
+        function submitForm(selectElement) {
+            const selectedKeyword = selectElement.value;
             if (selectedKeyword !== "") {
                 keywordInput.value = selectedKeyword;
                 addKeyword(selectedKeyword); // 選択したキーワードを先頭に移動
-            } else {
-                keywordInput.value = ""; // デフォルト選択肢が選ばれた場合は入力欄をクリア
+                searchForm.submit(); // フォームを送信
             }
-        });
+        }
 
         keywordInput.addEventListener('keypress', function(event) {
             if (event.key === 'Enter') {
@@ -153,7 +155,7 @@
         function searchRegza() {
             const keyword = keywordInput.value;
             addKeyword(keyword);
-            window.location.href = `http://192.168.4.101/search/searchresult/searchresult.html?keyword=${encodeURIComponent(keyword)}`;
+            searchForm.submit();
         }
 
         function searchTVDetuzo() {
@@ -213,3 +215,4 @@
     </script>
 </body>
 </html>
+
